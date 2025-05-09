@@ -1,0 +1,215 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>投资投票概率计算器</title>
+    <style>
+        body {
+            font-family: Arial, 'Microsoft YaHei', sans-serif;
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 20px;
+            background-color: #f4f4f9;
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        .input-group {
+            margin: 10px 0;
+        }
+        label {
+            display: inline-block;
+            width: 200px;
+            font-weight: bold;
+        }
+        input {
+            padding: 8px;
+            width: 100px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        button {
+            display: block;
+            margin: 20px auto;
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        #result {
+            margin-top: 20px;
+            font-size: 18px;
+            text-align: center;
+            color: #333;
+        }
+        #error {
+            color: red;
+            text-align: center;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <h1>投资投票概率计算器</h1>
+    <div class="container">
+        <div class="input-group">
+            <label for="N">投资人数量 (N)：</label>
+            <input type="number" id="N" min="1" value="5">
+        </div>
+        <div class="input-group">
+            <label for="M">项目数量 (M)：</label>
+            <input type="number" id="M" min="1" value="10">
+        </div>
+        <div class="input-group">
+            <label for="X">每人最多投资项目数 (X)：</label>
+            <input type="number" id="X" min="1" value="3">
+        </div>
+        <div class="input-group">
+            <label for="Y">至少获得多数投资的项目数 (Y)：</label>
+            <input type="number" id="Y" min="1" value="2">
+        </div>
+        <button onclick="calculateProbability()">计算概率</button>
+        <div id="error"></div>
+        <div id="result"></div>
+    </div>
+
+    <script>
+        // 随机选择k个项目的辅助函数（模拟组合选择）
+        function randomChoice(arr, k) {
+            let shuffled = arr.slice();
+            for (let i = shuffled.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+            }
+            return shuffled.slice(0, k);
+        }
+
+        // 蒙特卡洛模拟计算概率
+        function simulateVoting(N, M, X, Y, numSimulations = 10000) {
+            const majority = Math.ceil(N / 2); // 多数票阈值
+            let successCount = 0;
+
+            // 创建项目索引数组
+            const projects = Array.from({ length: M }, (_, i) => i);
+
+            for (let sim = 0; sim < numSimulations; sim++) {
+                // 初始化每个项目的得票数
+                let votes = new Array(M).fill(0);
+
+                // 模拟N名投资人投票
+                for (let i = 0; i < N; i++) {
+                    // 每人随机选择X个项目投A
+                    const chosenProjects = randomChoice(projects, X);
+                    chosenProjects.forEach(project => votes[project]++);
+                }
+
+                // 统计得票数≥多数票阈值的项目数
+                const majorityProjects = votes.filter(v => v >= majority).length;
+
+                // 检查是否至少有Y个项目满足条件
+                if (majorityProjects >= Y) {
+                    successCount++;
+                }
+            }
+
+            // 返回概率
+            return successCount / numSimulations;
+        }
+
+        // 处理用户输入并计算概率
+        function calculateProbability() {
+            // 获取输入
+            const N = parseInt(document.getElementById('N').value);
+            const M = parseInt(document.getElementById('M').value);
+            const X = parseInt(document.getElementById('X').value);
+            const Y = parseInt(document.getElementById('Y').value);
+
+            // 获取错误和结果显示元素
+            const errorDiv = document.getElementById('error');
+            const resultDiv = document.getElementById('result');
+
+            // 验证输入
+            if (isNaN(N) || isNaN(M) || isNaN(X) || isNaN(Y) || N < 1 || M < 1 || X < 1 || Y < 1) {
+                errorDiv.style.display = 'block';
+                errorDiv.textContent = '请输入有效的正整数。';
+                resultDiv.textContent = '';
+                return;
+            }
+            if (X > M) {
+                errorDiv.style.display = 'block';
+                errorDiv.textContent = '每人最多投资项目数 (X) 不能超过项目数量 (M)。';
+                resultDiv.textContent = '';
+                return;
+            }
+            if (Y > M) {
+                errorDiv.style.display = 'block';
+                errorDiv.textContent = '至少获得多数投资的项目数 (Y) 不能超过项目数量 (M)。';
+                resultDiv.textContent = '';
+                return;
+            }
+
+            // 清除错误信息
+            errorDiv.style.display = 'none';
+
+            // 计算概率
+            const probability = simulateVoting(N, M, X, Y);
+            
+            // 显示结果
+            resultDiv.textContent = `至少 ${Y} 个项目获得多数投资的概率：${probability.toFixed(4)}`;
+        }
+    </script>
+</body>
+</html>
