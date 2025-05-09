@@ -100,6 +100,22 @@
             text-align: center;
             display: none;
         }
+        #explanation {
+            margin-top: 30px;
+            padding: 15px;
+            background-color: #f9f9f9;
+            border-left: 4px solid #007bff;
+            border-radius: 4px;
+            font-size: 16px;
+            line-height: 1.6;
+        }
+        #explanation h2 {
+            margin-top: 0;
+            color: #333;
+        }
+        #explanation p {
+            margin: 10px 0;
+        }
     </style>
 </head>
 <body>
@@ -124,6 +140,7 @@
         <button onclick="calculateProbability()">计算概率</button>
         <div id="error"></div>
         <div id="result"></div>
+        <div id="explanation"></div>
     </div>
 
     <script>
@@ -169,6 +186,32 @@
             return successCount / numSimulations;
         }
 
+        // 生成计算过程的解释
+        function generateExplanation(N, M, X, Y, probability) {
+            const majority = Math.ceil(N / 2);
+            return `
+                <h2>计算过程解释</h2>
+                <p><strong>问题背景</strong>：有 ${N} 名投资人对 ${M} 个项目进行投票。每名投资人最多可以对 ${X} 个项目投“投资”（A），对其余项目投“不投资”（B）。我们需要计算至少 ${Y} 个项目获得多数投资（即至少 ${majority} 名投资人投A）的概率。</p>
+                <p><strong>多数投资的定义</strong>：一个项目获得多数投资，意味着投A的投资人数量超过投资人总数的一半，即 ≥ ${majority}（因为 ⌈${N}/2⌉ = ${majority}）。</p>
+                <p><strong>计算方法</strong>：由于直接计算所有可能的投票组合（共 ${M} 选 ${X} 的组合数 ${N} 次方）复杂度过高，我们使用蒙特卡洛模拟方法来估计概率。蒙特卡洛模拟通过随机采样来近似真实概率，适用于大规模输入。</p>
+                <p><strong>模拟步骤</strong>：</p>
+                <ol>
+                    <li>重复模拟 10,000 次，以确保结果的稳定性。</li>
+                    <li>在每次模拟中：
+                        <ul>
+                            <li>为 ${N} 名投资人生成投票：每人从 ${M} 个项目中随机选择 ${X} 个投A。</li>
+                            <li>统计每个项目的得票数（投A的次数）。</li>
+                            <li>计算得票数 ≥ ${majority} 的项目数量。</li>
+                            <li>如果满足条件的项目数 ≥ ${Y}，记录为一次成功。</li>
+                        </ul>
+                    </li>
+                    <li>概率 = 成功次数 / 总模拟次数（10,000）。</li>
+                </ol>
+                <p><strong>结果解释</strong>：对于输入 N=${N}, M=${M}, X=${X}, Y=${Y}，模拟结果显示至少 ${Y} 个项目获得多数投资的概率约为 ${probability.toFixed(4)}。这个值是基于随机采样的估计值，可能因模拟的随机性略有波动，但多次运行会趋于稳定。</p>
+                <p><strong>注意事项</strong>：模拟次数（10,000）是精度与计算速度的折衷。若需要更高精度，可以增加模拟次数，但会增加计算时间。</p>
+            `;
+        }
+
         // 处理用户输入并计算概率
         function calculateProbability() {
             // 获取输入
@@ -177,27 +220,31 @@
             const X = parseInt(document.getElementById('X').value);
             const Y = parseInt(document.getElementById('Y').value);
 
-            // 获取错误和结果显示元素
+            // 获取错误、结果和解释显示元素
             const errorDiv = document.getElementById('error');
             const resultDiv = document.getElementById('result');
+            const explanationDiv = document.getElementById('explanation');
 
             // 验证输入
             if (isNaN(N) || isNaN(M) || isNaN(X) || isNaN(Y) || N < 1 || M < 1 || X < 1 || Y < 1) {
                 errorDiv.style.display = 'block';
                 errorDiv.textContent = '请输入有效的正整数。';
                 resultDiv.textContent = '';
+                explanationDiv.innerHTML = '';
                 return;
             }
             if (X > M) {
                 errorDiv.style.display = 'block';
                 errorDiv.textContent = '每人最多投资项目数 (X) 不能超过项目数量 (M)。';
                 resultDiv.textContent = '';
+                explanationDiv.innerHTML = '';
                 return;
             }
             if (Y > M) {
                 errorDiv.style.display = 'block';
                 errorDiv.textContent = '至少获得多数投资的项目数 (Y) 不能超过项目数量 (M)。';
                 resultDiv.textContent = '';
+                explanationDiv.innerHTML = '';
                 return;
             }
 
@@ -209,6 +256,9 @@
             
             // 显示结果
             resultDiv.textContent = `至少 ${Y} 个项目获得多数投资的概率：${probability.toFixed(4)}`;
+
+            // 显示计算过程解释
+            explanationDiv.innerHTML = generateExplanation(N, M, X, Y, probability);
         }
     </script>
 </body>
